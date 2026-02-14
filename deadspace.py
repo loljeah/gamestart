@@ -32,55 +32,39 @@ ENABLE_FSR = os.environ.get("ENABLE_FSR", "0") == "1"
 
 
 def cleanup_previous_instances():
-    """Kill any previous game instances safely."""
-    my_pid = os.getpid()
-    killed = []
+    """Kill ALL wine/gaming processes - nuclear option."""
+    # Patterns to kill (order matters - kill children first)
+    kill_patterns = [
+        'Dead Space',
+        'xalia',
+        'winedevice',
+        'wine64-preloader',
+        'wine-preloader',
+        'wineserver',
+        'proton',
+        'umu-run',
+        'umu-shim',
+        'pressure-vessel',
+        'pv-adverb',
+        'srt-bwrap',
+        'gamescopereaper',
+        'gamescope',
+    ]
 
-    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-        try:
-            pid = proc.info['pid']
-            if pid == my_pid:
-                continue
+    killed_count = 0
+    for pattern in kill_patterns:
+        result = subprocess.run(
+            ['pkill', '-9', '-f', pattern],
+            capture_output=True
+        )
+        if result.returncode == 0:
+            killed_count += 1
 
-            cmdline = proc.info['cmdline']
-            if not cmdline:
-                continue
-
-            cmdline_str = ' '.join(cmdline)
-
-            # Kill gamescope running umu-run for deadspace
-            if 'gamescope' in cmdline_str and 'deadspace' in cmdline_str.lower():
-                proc.kill()
-                killed.append(f"gamescope ({pid})")
-                continue
-
-            # Kill umu-run for deadspace
-            if 'umu-run' in cmdline_str and 'deadspace' in cmdline_str.lower():
-                proc.kill()
-                killed.append(f"umu-run ({pid})")
-                continue
-
-            # Kill Dead Space.exe
-            if GAME_EXE in cmdline_str:
-                proc.kill()
-                killed.append(f"{GAME_EXE} ({pid})")
-                continue
-
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
-
-    # Kill wineserver for this prefix
-    try:
-        env = os.environ.copy()
-        env['WINEPREFIX'] = WINEPREFIX
-        subprocess.run(['wineserver', '-k'], env=env, capture_output=True, timeout=5)
-        killed.append("wineserver")
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
-
-    if killed:
-        print(f"Cleaned up: {', '.join(killed)}")
-        time.sleep(2)
+    if killed_count > 0:
+        print(f"Cleaned up {killed_count} process groups")
+        time.sleep(3)
+    else:
+        print("No previous instances found")
 
 
 def get_environment():
